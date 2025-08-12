@@ -52,6 +52,7 @@ NRX_UINT32 = (NRX_4BYTES | NRX_TYPE_INT | NRX_UNSIGNED)
 NRX_INT32  = (NRX_4BYTES | NRX_TYPE_INT | NRX_SIGNED)
 
 NRX_FLOAT  = (NRX_4BYTES | NRX_TYPE_FLOAT | NRX_SIGNED)
+NRX_DOUBLE = (NRX_8BYTES | NRX_TYPE_FLOAT | NRX_SIGNED)
 
 class NrxType_e(Enum):
     UINT8      = 0
@@ -61,8 +62,9 @@ class NrxType_e(Enum):
     UINT32     = 4
     INT32      = 5
     FLOAT      = 6
-    GROUPSTART = 7
-    GROUPSTOP  = 8
+    DOUBLE     = 7
+    GROUPSTART = 8
+    GROUPSTOP  = 9
 
 class NrxType():
 
@@ -121,7 +123,10 @@ def NrxTypeParse (rawtype):
         if rawtype & NRX_START: return NrxType_e.GROUPSTART
         return NrxType_e.GROUPSTOP
 
-    if rawtype & NRX_TYPE_FLOAT: return NrxType_e.FLOAT
+    if rawtype & NRX_TYPE_FLOAT:
+        bytesize = 2**(rawtype&NRX_BYTES_MASK)
+        if bytesize == 8: return NrxType_e.DOUBLE
+        return NrxType_e.FLOAT
 
     bytesize = 2**(rawtype&NRX_BYTES_MASK)
 
@@ -138,13 +143,15 @@ def NrxValueParse (rawvalue,vartype):
     """ NrxType_e based Bytes to value """
 
     parser = {
-        NrxType_e.UINT8: lambda arr:struct.unpack( 'B', arr[0:1])[0],
+        NrxType_e.UINT8 :lambda arr:struct.unpack( 'B', arr[0:1])[0],
         NrxType_e.UINT16:lambda arr:struct.unpack('<H', arr[0:2])[0],
         NrxType_e.UINT32:lambda arr:struct.unpack('<I', arr[0:4])[0],
-        NrxType_e.INT8:  lambda arr:struct.unpack( 'b', arr[0:1])[0],
-        NrxType_e.INT16: lambda arr:struct.unpack('<h', arr[0:2])[0],
-        NrxType_e.INT32: lambda arr:struct.unpack('<i', arr[0:4])[0],
-        NrxType_e.FLOAT: lambda arr:struct.unpack('<f', arr[0:4])[0],
+        NrxType_e.INT8  :lambda arr:struct.unpack( 'b', arr[0:1])[0],
+        NrxType_e.INT16 :lambda arr:struct.unpack('<h', arr[0:2])[0],
+        NrxType_e.INT32 :lambda arr:struct.unpack('<i', arr[0:4])[0],
+        NrxType_e.FLOAT :lambda arr:struct.unpack('<f', arr[0:4])[0],
+        NrxType_e.DOUBLE:lambda arr:struct.unpack('<d', arr[0:8])[0],
+        
     }
     return parser.get(vartype)(rawvalue)
 
@@ -159,6 +166,7 @@ def NrxValueUnite (value,vartype)->bytes:
         NrxType_e.INT16: lambda val:struct.pack('<h', int(val)),
         NrxType_e.INT32: lambda val:struct.pack('<i', int(val)),
         NrxType_e.FLOAT: lambda val:struct.pack('<f', float(val)),
+        NrxType_e.DOUBLE:lambda val:struct.pack('<d', float(val)),
     }
     return parser.get(vartype)(value)
 

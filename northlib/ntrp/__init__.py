@@ -39,7 +39,7 @@ import time
 
 availableRadios = list[NorthRadio]([])
 
-def radioSearch(baud=115200):
+def radioSearch(baud=2000000):
     """
     Search available ntrp radios connected to PC
     Radio objects stored  @availableRadios[] 

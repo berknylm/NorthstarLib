@@ -20,40 +20,35 @@ from   northswarm.math3d import *
 import struct
 import threading
 
-
 class UavCOM(NorthCOM):
 	
 	UAV_IDLE     = 0
-	UAV_ARM      = 1
-	UAV_DISARM   = 2
-	UAV_MANUAL   = 3
-	UAV_HEIGHT   = 4
-	UAV_AUTO     = 5
-	UAV_TAKEOFF  = 6
-	UAV_LAND     = 7
+	UAV_READY    = 1
+	UAV_AUTO     = 2
+	UAV_TAKEOFF  = 3
+	UAV_LAND     = 4
 
 	CMD_ID_UAV_CONTROLLER = 40
 
 	def __init__(self, uri="radio:/0/76/2/E7E7E7E301"):
 		super().__init__(uri)
 
-		self.mode   = self.UAV_IDLE
-		self.modeFunc = self._uavIdle
+		self.mode      = self.UAV_IDLE
+		self.modeFunc  = self._uavIdle
 		self.uavThread = threading.Thread(target=self._uavTask, daemon=False)
-		self.uavAlive = False
+		self.uavAlive  = False
 
 		self.position = [0.0, 0.0, 2.0] #Position Self Frame
 		self.posBias  = [0.0, 0.0, 0.0] #Start Position
 		self.heading  =  0.0            #Rotation Self Frame
-		self.rc       = [0, 0, 0, 0, 0]
+
+		self.start()
 
 	def start(self):
 		#self.connect() # Wait Connection Sync
 		self.connection = True # 1 Way Connection, Not ideal 
-
-		if self.connection is True:
-			self.uavAlive = True
-
+		if self.connection is not True: return
+		self.uavAlive = True
 		self.uavThread.start()
 
 	def setPosition(self, pos=list[float]): self.position = pos
@@ -71,8 +66,7 @@ class UavCOM(NorthCOM):
 	def setMode(self, mode=int):
 		modeDict = {
 			self.UAV_IDLE    : self._uavIdle,
-			self.UAV_ARM     : self._uavArm,
-			self.UAV_DISARM  : self._uavDisarm,
+			self.UAV_READY   : self._uavReady,
 			self.UAV_MANUAL  : self._uavManual,
 			self.UAV_HEIGHT  : self._uavHeight,
 			self.UAV_AUTO    : self._uavAuto,
@@ -98,11 +92,6 @@ class UavCOM(NorthCOM):
 	def _uavIdle(self):
 		self.uavCMD([self.UAV_IDLE])
 	
-	def _uavManual(self):	
-		arg = [self.UAV_MANUAL]
-		arg.extend(self.rc)
-		self.uavCMD(arg)
-	
 	def _uavAuto(self):
 		arg = [self.UAV_AUTO]
 		nav = vsub(self.position, self.posBias)
@@ -124,13 +113,12 @@ class UavCOM(NorthCOM):
 
 	def uavCMD(self, arg):
 		""" IDLE    : [0]
-			ARM		: [1]
-			DISARM  : [2]
-		    MANUAL  : [3, roll, pitch, yaw, power]
-		    HEIGHT  : [4, roll, pitch, yaw, posz[4]]
-		    AUTO    : [5, posx[4], posy[4], posz[4]]
-		    TAKEOFF : [6]
-		    LAND    : [7] 	
+			READY	: [1]
+		    MANUAL  : [2, roll, pitch, yaw, power]
+		    HEIGHT  : [3, roll, pitch, yaw, posz[4]]
+		    AUTO    : [4, posx[4], posy[4], posz[4]]
+		    TAKEOFF : [5]
+		    LAND    : [6] 	
 		"""
 		self.txCMD(dataID = self.CMD_ID_UAV_CONTROLLER, channels = bytearray(arg))
 
@@ -140,15 +128,14 @@ class UavCOM(NorthCOM):
 		return super().destroy()
 
 
-uri = "radio:/2/76/2/E7E7E7E305",
-
 if __name__ == '__main__':
+	
+	uri = "radio:/0/60/2/E7E7E7E305"
 
 	radioManager.radioSearch(baud=2000000) #Arduino DUE (USB Connection) has no Baudrate
-	if not len(radioManager.availableRadios) >= 1: sys.exit()
+	if len(radioManager.availableRadios) == 0: sys.exit()
 	time.sleep(1)
 	com = UavCOM(uri)
-	com.start()
 
 	while(1):
 		parsed = input().split()

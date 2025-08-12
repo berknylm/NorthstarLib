@@ -39,6 +39,7 @@ class NorthCOM(NorthNRF):
 
     def __init__(self, uri="radio:/0/76/2/E7E7E7E301"):
         self.uri = uri
+        print(uri, type(uri))
         part = uri.split('/')
         super().__init__(int(part[1]), int(part[2]), int(part[3]), part[4])
 

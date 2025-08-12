@@ -20,9 +20,6 @@ from   northlib.ncmd.northcom import NorthCOM
 from   northlib.ncmd.nrxtable import NrxTableLog
 from   northswarm.uavcom import UavCOM
 
-import keyboard
-import threading
-
 """
 String to NRX Commands translator
 Controller task auto start
@@ -51,7 +48,7 @@ class NorthCMD(UavCOM):
 		if(parsed[0] == "LAND")   : self.setMode(self.UAV_LAND)
 
 
-uri = "radio:/0/76/2/E7E7E7E301"
+uri = "radio:/0/76/2/E7E7E7E305"
 
 if __name__ == '__main__':
 	

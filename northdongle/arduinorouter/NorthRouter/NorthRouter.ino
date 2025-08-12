@@ -26,7 +26,6 @@
 #include "ntrp.h"
 #include "ntrp_router.h"
 
-
 #ifdef ARDUINO_AVR_UNO
 #define LEDPIN 13
 RF24 rfmodule(8,9);
