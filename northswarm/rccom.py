@@ -16,6 +16,15 @@ import northlib.ntrp as radioManager
 from   northlib.ntrp.northpipe import NorthNRF
 import northlib.ncmd.controller as ncmd
 
+RCCOM_STATE_HEIGHT = 2
+RCCOM_STATE_NAV    = 3
+
+# PID : 0.9 ... 21 : FAIL
+
+# PID : 0.9 ... 30 : FAIL
+
+# PID : 0.9 ... 12 : OK
+
 if __name__ == '__main__':
 
     print("RCCOM Application")
@@ -23,7 +32,7 @@ if __name__ == '__main__':
     radioManager.radioSearch()
     if len(radioManager.availableRadios) == 0:  sys.exit()
     
-    uavcom = NorthNRF(ch=60, address="E7E7E7E305")
+    uavcom = NorthNRF(ch=60)
  
     ctrl = ncmd.Controller(True)
     
@@ -33,7 +42,9 @@ if __name__ == '__main__':
             while uavcom.radio.isRadioAlive():
                 ctrl.update()
                 time.sleep(ctrl.THREAD_SLEEP)
-                uavcom.txCMD(channels=ctrl.getAxis(), force=True)
+                cmd = ctrl.getAxis()
+                if cmd[4] != 0: cmd[4] = RCCOM_STATE_NAV
+                uavcom.txCMD(channels=cmd, force=True)
         except KeyboardInterrupt:
             print("Keyboard Interrupt")
 

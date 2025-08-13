@@ -74,7 +74,7 @@ class Controller():
         if self.callBack is not None:
             self.callBack(self.getAxis())
             
-        print(self.getAxisRaw())
+        #print(self.getAxisRaw())
     
     def getAxisRaw(self):
         if not self.dynamic:
