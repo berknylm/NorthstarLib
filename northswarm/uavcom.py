@@ -21,132 +21,121 @@ import struct
 import threading
 
 class UavCOM(NorthCOM):
-	
-	UAV_IDLE     = 0
-	UAV_READY    = 1
-	UAV_AUTO     = 2
-	UAV_TAKEOFF  = 3
-	UAV_LAND     = 4
+    
+    UAVCOM_STATE_IDLE      = 0
+    UAVCOM_STATE_READY     = 1
+    UAVCOM_STATE_AUTO      = 2
+    UAVCOM_STATE_MOVING    = 3
+    UAVCOM_STATE_TAKEOFF   = 4
+    UAVCOM_STATE_LAND      = 5
 
-	CMD_ID_UAV_CONTROLLER = 40
+    UAV_CMD_ARM     = 1
+    UAV_CMD_DISARM  = 2
+    UAV_CMD_TAKEOFF = 3
+    UAV_CMD_LAND    = 4
+    UAV_CMD_MOVE    = 5
+    UAV_CMD_YAW     = 6
+    UAV_CMD_HOME    = 7
+    UAV_CMD_KILL    = 8
 
-	def __init__(self, uri="radio:/0/76/2/E7E7E7E301"):
-		super().__init__(uri)
+    CMD_ID_UAV_CONTROLLER = 40
 
-		self.mode      = self.UAV_IDLE
-		self.modeFunc  = self._uavIdle
-		self.uavThread = threading.Thread(target=self._uavTask, daemon=False)
-		self.uavAlive  = False
+    def __init__(self, uri="radio:/0/76/2/E7E7E7E301"):
+        super().__init__(uri)
 
-		self.position = [0.0, 0.0, 2.0] #Position Self Frame
-		self.posBias  = [0.0, 0.0, 0.0] #Start Position
-		self.heading  =  0.0            #Rotation Self Frame
+        self.mode      = self.UAVCOM_STATE_IDLE
+        self.modeFunc  = self._uavIdle
+        self.uavThread = threading.Thread(target=self._uavTask, daemon=False)
+        self.uavAlive  = False
 
-		self.start()
+    def start(self):
+        #self.connect() # Wait Connection Sync
+        self.connection = True # 1 Way Connection, Not ideal 
+        if self.connection is not True: return
+        self.uavAlive = True
+        self.uavThread.start()
 
-	def start(self):
-		#self.connect() # Wait Connection Sync
-		self.connection = True # 1 Way Connection, Not ideal 
-		if self.connection is not True: return
-		self.uavAlive = True
-		self.uavThread.start()
+    def uavCMD(self, arg):
+        """ ARM      : [1]
+            DISARM   : [2]
+            TAKEOFF  : [3, posz]
+            LAND	 : [4]
+            MOVE     : [5, posx, posy, posz]
+            YAW		 : [6, rotz]
+            HOME	 : [7]
+            KILL     : [8]
+        """
+        self.txCMD(dataID = self.CMD_ID_UAV_CONTROLLER, channels = bytearray(arg))
 
-	def setPosition(self, pos=list[float]): self.position = pos
-	
-	def setManual(self): self.setMode(self.UAV_MANUAL)
-	
-	def setAuto(self):
-		if self.mode == self.UAV_IDLE: return
-		self.setMode(self.UAV_AUTO)
-	
-	def takeOff(self):   self.setMode(self.UAV_TAKEOFF)
-	def land(self):    	 self.setMode(self.UAV_LAND)
-	def landForce(self): self.setMode(self.UAV_IDLE)
+    def setMode(self, mode=int):
+        modeDict = {
+            self.UAVCOM_STATE_IDLE    : self._uavIdle,
+            self.UAVCOM_STATE_READY   : self._uavReady,
+            self.UAVCOM_STATE_AUTO    : self._uavAuto,
+            self.UAVCOM_STATE_TAKEOFF : self._uavTakeOff,
+            self.UAVCOM_STATE_LAND    : self._uavLand,
+        }
+        self.mode     = mode
+        self.modeFunc = modeDict[mode]
+        
+    def _uavTask(self):
+        while self.uavAlive:
+            self.modeFunc()
+            time.sleep(0.03)
 
-	def setMode(self, mode=int):
-		modeDict = {
-			self.UAV_IDLE    : self._uavIdle,
-			self.UAV_READY   : self._uavReady,
-			self.UAV_MANUAL  : self._uavManual,
-			self.UAV_HEIGHT  : self._uavHeight,
-			self.UAV_AUTO    : self._uavAuto,
-			self.UAV_TAKEOFF : self._uavTakeOff,
-			self.UAV_LAND    : self._uavLand,
-		}
-		self.mode     = mode
-		self.modeFunc = modeDict[mode]
-		
-	def setRC(self, channels=list[int]):
-		self.rc = channels
+    def arm(self):
+        self.uavCMD([self.UAV_CMD_ARM])
+            
+    def disarm(self):
+        self.uavCMD([self.UAV_CMD_DISARM])
+        
+    def takeoff(self, posz:float = 3):
+        arg = [self.UAV_CMD_TAKEOFF]
+        arg.extend(struct.pack('<f', float(posz)))
+        self.uavCMD(arg)
 
-	def setReference(self, pos=list[float]):
-		refset = [1]
-		refset.append(pos)
-		self.SET("uavcom", refset)
+    def land(self):
+        self.uavCMD([self.UAV_CMD_LAND])
+    
+    def move(self, pos=[0,0,0]): 
+        arg = [self.UAV_CMD_MOVE]
+        arg.extend(struct.pack('<f', float(pos[0])))
+        arg.extend(struct.pack('<f', float(pos[1])))
+        arg.extend(struct.pack('<f', float(pos[2])))
+        self.uavCMD(arg)
 
-	def _uavTask(self):
-		while self.uavAlive:
-			self.modeFunc()
-			time.sleep(0.03)
+    def yaw(self, rotz:float):
+        arg = [self.UAV_CMD_YAW]
+        arg.extend(struct.pack('<f', float(rotz)))
+        self.uavCMD(arg)
+    
+    def home(self):
+        self.uavCMD([self.UAV_CMD_HOME])
 
-	def _uavIdle(self):
-		self.uavCMD([self.UAV_IDLE])
-	
-	def _uavAuto(self):
-		arg = [self.UAV_AUTO]
-		nav = vsub(self.position, self.posBias)
-		arg.extend(struct.pack('<f', float(nav[0])))
-		arg.extend(struct.pack('<f', float(nav[1])))
-		arg.extend(struct.pack('<f', float(nav[2])))
-		self.uavCMD(arg)
-	
-	def _uavHeight(self):
-		arg = [self.UAV_HEIGHT]
-		arg.extend(self.rc)
-		self.uavCMD(arg)
+    def kill(self):
+        self.uavCMD([self.UAV_CMD_KILL])
 
-	def _uavTakeOff(self):
-		self.uavCMD([self.UAV_TAKEOFF])
+    def _uavIdle(self):
+        self.disarm()
+    
+    def _uavReady(self):
+        self.arm()
 
-	def _uavLand(self):
-		self.uavCMD([self.UAV_LAND])
+    def _uavAuto(self):
+        self.move(pos = self.target)
+    
+    def _uavTakeOff(self):
+        self.uavCMD([self.UAV_CMD_TAKEOFF])
 
-	def uavCMD(self, arg):
-		""" IDLE    : [0]
-			READY	: [1]
-		    MANUAL  : [2, roll, pitch, yaw, power]
-		    HEIGHT  : [3, roll, pitch, yaw, posz[4]]
-		    AUTO    : [4, posx[4], posy[4], posz[4]]
-		    TAKEOFF : [5]
-		    LAND    : [6] 	
-		"""
-		self.txCMD(dataID = self.CMD_ID_UAV_CONTROLLER, channels = bytearray(arg))
+    def _uavLand(self):
+        self.land()
 
-	def destroy(self):
-		self.setMode(self.UAV_IDLE)
-		self.uavAlive = False
-		return super().destroy()
+    def destroy(self):
+        ts = 0
+        while(ts < 1000):   
+            self.kill()
+            ts += 1
 
-
-if __name__ == '__main__':
-	
-	uri = "radio:/0/60/2/E7E7E7E305"
-
-	radioManager.radioSearch(baud=2000000) #Arduino DUE (USB Connection) has no Baudrate
-	if len(radioManager.availableRadios) == 0: sys.exit()
-	time.sleep(1)
-	com = UavCOM(uri)
-
-	while(1):
-		parsed = input().split()
-		if(parsed[0] == "AUTO")   : com.setAuto()
-		if(parsed[0] == "TAKEOFF"): com.takeOff()
-		if(parsed[0] == "LAND")   : com.land()
-		if(parsed[0] == "IDLE")   : com.landForce()
-		if(parsed[0] == "POS")    :
-			try: com.setPosition([float(x) for x in parsed[1:]])
-			except: ValueError 
-		if(parsed[0] == "EXIT")   : break
-	
-	com.landForce()
-	sys.exit()
+        self.setMode(self.UAVCOM_STATE_IDLE)
+        self.uavAlive = False
+        return super().destroy()

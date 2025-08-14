@@ -8,168 +8,186 @@
 #   2024 Yeniay Uav Flight Control Systems
 #   Research and Development Team
 
+import time
 import sys
+import readline
 sys.path.append('./')
 
-import time
 import northlib.ntrp as radioManager
-import northlib.ntrp.ntrp as ntrp
-import northlib.ncmd.controller as ncmd
-from   northlib.ntrp.northpipe import NorthPipe,NorthNRF
-from   northlib.ncmd.northcom  import NorthCOM
-from   northlib.ncmd.nrxtable  import NrxTableLog
-from   northswarm.uavcom import UavCOM
+from northswarm.uavcom import UavCOM
 
-# Import helpers from this package so running as a module works
-from northswarm.shape import *
-from northswarm.math3d import *
+uri = "radio:/0/60/2/E7E7E7E301"
 
-import time
-import threading
-
-class UavClient():
-	def __init__(self, uris = list[str], spos=list):
-		self.rc = ncmd.Controller(True) # Joystick controller
-		self.comList = list[UavCOM]([])
-		self.operation = False
-		for uri in uris: self.comList.append(UavCOM(uri))
-
-		for i in range(len(spos)):
-			if i >= len(self.comList): break 
-			self.comList[i].posBias = spos[i]
-			self.comList[i].position = vadd([0, 0, 2], spos[i])
-		self.startAll()
-
-	def operationLock(self):
-		self.operation = False
-
-	def operationUnlock(self):
-		self.operation = True
-
-	def setOperation(self, shp1, shp2, interval):
-		i = 0
-		while i < interval:
-			if self.operation == False: break
-			sh = shapeLerp(shp1, shp2, i / interval)
-			self.setPositionAll(sh.getPoints())
-			i += 0.05 
-			time.sleep(0.05)
-	
-	def operationThread(self):
-		op1 = Shape([0, 0,  5],  [0, 0, 0],   2, Triangle)
-		op2 = Shape([0, 0, 13],  [0, 0, 270], 2, Triangle)
-		op3 = Shape([0, 0, 13],  [0, 0, 360], 2.5, Triangle)
-		op4 = Shape([13, 0, 12], [0, 0, 0],   1, Trimap )
-		op5 = Shape([13, 0, 12], [0, 0, 720], 1, Trimap )
-		
-		self.operationUnlock()
-		client.takeOffAll()
-		
-		if self.operation == False: return
-		time.sleep(1)
-		client.setAutoAll()
-		client.setOperation(op1, op2, 20)
-		client.setOperation(op2, op3, 10)
-		time.sleep(5)
-
-		self.setPositionAll(op4.getPoints())
-		if self.operation == False: return
-		time.sleep(5)
-		client.setOperation(op4, op5, 100)
-		
-		if self.operation == False: return
-		time.sleep(8)
-		client.landAll()
-
-	def setPosition(self, pos):
-		if len(pos) < 3: return
-		try:
-			for i in range(len(self.comList)):
-				self.comList[i].setPosition(vadd(self.comList[i].posBias, pos))
-		except: ValueError
-
-	def startAll(self):
-		for com in self.comList: 
-			com.start()	
-			time.sleep(0.01)
-
-	def setAutoAll(self):
-		print("AutoALL")
-		for com in self.comList: com.setAuto()
-
-	def setPositionAll(self, pCloud):
-		print(pCloud) 
-		for i in range(len(pCloud)):
-			if(i >= len(self.comList)): break
-			self.comList[i].setPosition(pCloud[i])
-
-	def takeOffAll(self):
-		print("TakeoffALL")
-		for com in self.comList: com.takeOff()
-
-	def landAll(self):
-		print("LandALL")
-		for com in self.comList: com.land()
-
-	def landForce(self):
-		for com in self.comList: com.landForce()
-
-	def setHome(self):
-		for com in self.comList: com.setPosition(vadd(com.posBias, [0, 0, 2]))
-
-	def commandParser(self, string = str):
-		parsed = string.split(' ')
-		if(len(parsed) < 1): return
-		com = None
-
-		if(parsed[0] == "UNLOCK"):
-			self.opPcs = threading.Thread(target=self.operationThread, daemon=False)
-			self.opPcs.start()
-
-		if(parsed[0] == "LOCK"): self.operationLock()
-
-		if(parsed[0] == "AUTO")   : self.setAutoAll()
-		if(parsed[0] == "TAKEOFF"): self.takeOffAll()
-		if(parsed[0] == "LAND")   : self.landAll()
-		if(parsed[0] == "IDLE")   : self.landForce()
-		if(parsed[0] == "POS")    : self.setPosition([float(x) for x in parsed[1:]])
-		if(parsed[0] == "HOME")   : self.setHome()
-
-		if(parsed[0] == "NAV0")   : self.setPositionAll([[-3,  0,  14], [0,  5,  14],  [3,  0,  14]])
-		if(parsed[0] == "NAV1")   : self.setPositionAll([[12,  0,  15], [15, 5,  15],  [17, 0,  15]])
-
-		if(parsed[0] == "0")      : com = self.comList[0]
-		if(parsed[0] == "1")      : com = self.comList[1]
-		if(parsed[0] == "2")      : com = self.comList[2]
-		
-		if com is None : return
-		if(len(parsed) < 2): return
-
-		if(parsed[1] == "POS")     : com.setPosition([float(x) for x in parsed[1:]])
-		if(parsed[1] == "HOME")    : com.setPosition(vadd([0, 0, 3], com.posBias))
-		if(parsed[1] == "AUTO")    : com.setAuto()
-		if(parsed[1] == "TAKEOFF") : com.takeOff()
-		if(parsed[1] == "LAND")    : com.land()
-		if(parsed[1] == "IDLE")    : com.landForce()
-		if(parsed[1] == "MANUAL")  : 
-			self.rc.callBack = lambda x : com.setRC(channels = x) 
-			com.setManual()
-
-uris = [
-	"radio:/0/76/2/E7E7E7E301",
-	"radio:/1/76/2/E7E7E7E303",
-	"radio:/2/76/2/E7E7E7E305",
-]
-
-spos = [[-3, 0, 0], [0, 5, 0], [3, 0, 0]]
+class UavClient:
+    def __init__(self, uav:UavCOM):
+        self.uav = uav
+        
+    def show_menu(self):
+        print("\n=== NorthstarLib UAV Terminal ===")
+        print("Commands (case-insensitive):")
+        print("  arm                    - Arm the UAV")
+        print("  disarm                 - Disarm the UAV")
+        print("  takeoff [altitude]     - Takeoff to altitude (default: 3.0m)")
+        print("  land                   - Land the UAV")
+        print("  move <x> <y> <z>       - Move to position")
+        print("  yaw <angle>            - Rotate to angle in degrees")
+        print("  home                   - Return to home position")
+        print("  kill                   - Emergency kill command")
+        print("  auto                   - Enable auto mode")
+        print("  idle                   - Set to idle mode")
+        print("  status                 - Show current status")
+        print("  help                   - Show this menu")
+        print("  exit                   - Exit application")
+        print("Note: Use arrow keys for command history")
+        print("================================")
+        
+    def handle_command(self, command_line):
+        parts = command_line.strip().split()
+        if not parts:
+            return True
+            
+        cmd = parts[0].lower()
+        
+        try:
+            if cmd == "arm":
+                self.uav.arm()
+                print("UAV armed")
+                
+            elif cmd == "disarm":
+                self.uav.disarm()
+                print("UAV disarmed")
+                
+            elif cmd == "takeoff":
+                altitude = float(parts[1]) if len(parts) > 1 else 3.0
+                self.uav.takeoff(altitude)
+                print(f"Taking off to {altitude}m")
+                
+            elif cmd == "land":
+                self.uav.land()
+                print("Landing")
+                
+            elif cmd == "move":
+                if len(parts) >= 4:
+                    x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                    self.uav.move([x, y, z])
+                    print(f"Moving to position [{x}, {y}, {z}]")
+                else:
+                    print("Usage: move <x> <y> <z>")
+                    
+            elif cmd == "yaw":
+                if len(parts) >= 2:
+                    angle = float(parts[1])
+                    self.uav.yaw(angle)
+                    print(f"Rotating to {angle} degrees")
+                else:
+                    print("Usage: yaw <angle>")
+                    
+            elif cmd == "home":
+                self.uav.home()
+                print("Returning to home position")
+                
+            elif cmd == "kill":
+                self.uav.kill()
+                print("Emergency kill executed")
+                    
+            elif cmd == "auto":
+                self.uav.setMode(self.uav.UAVCOM_STATE_AUTO)
+                print("Auto mode enabled")
+                
+            elif cmd == "idle":
+                self.uav.setMode(self.uav.UAVCOM_STATE_IDLE)
+                print("Idle mode set")
+                
+            elif cmd == "status":
+                mode_names = {
+                    self.uav.UAVCOM_STATE_IDLE: "IDLE",
+                    self.uav.UAVCOM_STATE_READY: "READY", 
+                    self.uav.UAVCOM_STATE_AUTO: "AUTO",
+                    self.uav.UAVCOM_STATE_MOVING: "MOVING",
+                    self.uav.UAVCOM_STATE_TAKEOFF: "TAKEOFF",
+                    self.uav.UAVCOM_STATE_LAND: "LAND"
+                }
+                mode_name = mode_names.get(self.uav.mode, "UNKNOWN")
+                print(f"Mode: {mode_name} ({self.uav.mode})")
+                print(f"Position: {self.uav.position}")
+                print(f"Heading: {self.uav.heading}")
+                print(f"Connection: {'Connected' if self.uav.connection else 'Disconnected'}")
+                
+            elif cmd == "help":
+                self.show_menu()
+                
+            elif cmd == "exit":
+                return False
+                
+            else:
+                print(f"Unknown command: '{cmd}'. Type 'help' for available commands.")
+                
+        except (ValueError, IndexError) as e:
+            print(f"Invalid input: {e}")
+        except Exception as e:
+            print(f"Command error: {e}")
+            
+        return True
+        
+    def run(self):
+        print("UAV Terminal Started")
+        
+        # Configure readline for command history and completion
+        readline.parse_and_bind('tab: complete')
+        readline.parse_and_bind('set editing-mode emacs')
+        
+        # Add command completion
+        commands = ['arm', 'disarm', 'takeoff', 'land', 'move', 'yaw', 'home', 'kill', 'auto', 'idle', 'status', 'help', 'exit']
+        def completer(text, state):
+            options = [cmd for cmd in commands if cmd.startswith(text.lower())]
+            if state < len(options):
+                return options[state]
+            else:
+                return None
+        readline.set_completer(completer)
+        
+        self.show_menu()
+        
+        while True:
+            try:
+                command = input("> ")
+                if not self.handle_command(command):
+                    break
+                    
+            except KeyboardInterrupt:
+                print("\nInterrupted by user. Exiting...")
+                break
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
 if __name__ == '__main__':
+    uav = None
+    try:
+        radioManager.radioSearch(baud=2000000)  # Arduino DUE (USB Connection) has no Baudrate
+        if not len(radioManager.availableRadios) > 0:
+            print("No radios found. Exiting.")
+            sys.exit()
 
-	radioManager.radioSearch(baud=2000000)
-	if not len(radioManager.availableRadios) >= len(uris): sys.exit()
-	time.sleep(1)
-	client = UavClient(uris, spos)
-
-	print("Commands ON")
-	while (1):
-		client.commandParser(input())
+        time.sleep(1)
+        
+        uav = UavCOM(uri=uri)
+        print(f"Connected to UAV at {uri}")
+        
+        # Create and run client
+        client = UavClient(uav)
+        client.run()
+        
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        # Cleanup
+        try:
+            if uav:
+                uav.destroy()
+        except:
+            pass
+        radioManager.closeAvailableRadios()
+        
+        print("UAV Terminal exit")
+        time.sleep(0.1)
+        sys.exit()
