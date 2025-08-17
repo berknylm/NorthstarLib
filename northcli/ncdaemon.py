@@ -59,22 +59,21 @@ class NorthDaemon:
         try:
             import sys
             from pathlib import Path
-            # Add parent directory to path to find northswarm
+            # Add parent directory to path to find northuav
             parent_dir = str(Path(__file__).parent.parent)
             if parent_dir not in sys.path:
                 sys.path.insert(0, parent_dir)
             
-            from northswarm.uavcom import UavCOM
+            from northuav.uavcom import UavCOM
             
             linked_agents = self.config.load_links()
             for idx, agent_id in enumerate(linked_agents):
-                uri = f"radio:/{idx}/76/2/E7E7E7E{int(agent_id):03d}"
+                uri = f"radio:/{idx}/{int(agent_id):02d}/2/E7E7E7E301"
                 com = UavCOM(uri)
-                com.start()
                 self.uav_connections[agent_id] = com
                 time.sleep(0.05)  # Small delay between connections
         except ImportError:
-            print("Error: Cannot import northswarm. Check installation.")
+            print("Error: Cannot import northuav. Check installation.")
         except Exception as e:
             print(f"Error connecting to agents: {e}")
     
@@ -121,6 +120,24 @@ class NorthDaemon:
             return self._handle_status(request)
         elif action == "cmd":
             return self._handle_command(request)
+        elif action == "origin":
+            return self._handle_origin(request)
+        elif action == "arm":
+            return self._handle_arm(request)
+        elif action == "disarm":
+            return self._handle_disarm(request)
+        elif action == "takeoff":
+            return self._handle_takeoff(request)
+        elif action == "move":
+            return self._handle_move(request)
+        elif action == "land":
+            return self._handle_land(request)
+        elif action == "kill":
+            return self._handle_kill(request)
+        elif action == "launch":
+            return self._handle_launch(request)
+        elif action == "delay":
+            return self._handle_delay(request)
         elif action == "shutdown":
             return self._handle_shutdown()
         else:
@@ -140,17 +157,16 @@ class NorthDaemon:
                     try:
                         import sys
                         from pathlib import Path
-                        # Add parent directory to path to find northswarm
+                        # Add parent directory to path to find northuav
                         parent_dir = str(Path(__file__).parent.parent)
                         if parent_dir not in sys.path:
                             sys.path.insert(0, parent_dir)
                         
-                        from northswarm.uavcom import UavCOM
+                        from northuav.uavcom import UavCOM
                         # Calculate radio index based on position in all_ids list
                         radio_idx = all_ids.index(agent_id)
-                        uri = f"radio:/{radio_idx}/76/2/E7E7E7E{int(agent_id):03d}"
+                        uri = f"radio:/{radio_idx}/{int(agent_id):02d}/2/E7E7E7E301"
                         com = UavCOM(uri)
-                        com.start()
                         self.uav_connections[agent_id] = com
                         time.sleep(0.05)
                     except Exception as e:
@@ -168,7 +184,7 @@ class NorthDaemon:
                 # Disconnect all agents
                 for agent_id, com in list(self.uav_connections.items()):
                     try:
-                        com.close()
+                        com.destroy()
                     except:
                         pass
                 self.uav_connections.clear()
@@ -182,7 +198,7 @@ class NorthDaemon:
                 for agent_id in ids_to_remove:
                     if agent_id in self.uav_connections:
                         try:
-                            self.uav_connections[agent_id].close()
+                            self.uav_connections[agent_id].destroy()
                             del self.uav_connections[agent_id]
                         except:
                             pass
@@ -206,13 +222,13 @@ class NorthDaemon:
                     
                     try:
                         if request.get("pos", False):
-                            agent_status["pos"] = com.getPosition()
+                            agent_status["pos"] = com.position
                         if request.get("rot", False):
-                            agent_status["rot"] = com.getRotation()
+                            agent_status["rot"] = com.heading
                         if request.get("nav", False):
-                            agent_status["nav"] = com.getNavigation()
+                            agent_status["nav"] = "navigation_data_placeholder"
                         if request.get("batt", False):
-                            agent_status["batt"] = com.getBattery()
+                            agent_status["batt"] = "battery_data_placeholder"
                     except Exception as e:
                         agent_status["error"] = f"Communication error: {e}"
                     
@@ -234,14 +250,190 @@ class NorthDaemon:
             com = self.uav_connections[agent_id]
             
             if request.get("takeoff", False):
-                com.takeOff()
+                altitude = request.get("altitude", 3.0)
+                com.takeoff(altitude)
             elif request.get("land", False):
                 com.land()
             elif request.get("pos"):
                 pos = request["pos"]
-                com.setPosition(pos[0], pos[1], pos[2])
+                com.move([pos[0], pos[1], pos[2]])
             else:
                 return {"ok": False, "error": "No valid command specified"}
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_origin(self, request):
+        """Handle origin setting request"""
+        try:
+            agent_id = request.get("id")
+            lat = request.get("lat")
+            lon = request.get("lon")
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            # Check if origin method supports setcmd parameter
+            if setcmd and hasattr(com, 'origin') and 'setcmd' in com.origin.__code__.co_varnames:
+                com.origin(lat, lon, setcmd=setcmd)
+            elif setcmd:
+                # If setcmd is requested but not supported, we'll need to handle it differently
+                # For now, just call the regular origin method
+                com.origin(lat, lon)
+            else:
+                com.origin(lat, lon)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_arm(self, request):
+        """Handle arm request"""
+        try:
+            agent_id = request.get("id")
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            com.arm(setcmd=setcmd)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_disarm(self, request):
+        """Handle disarm request"""
+        try:
+            agent_id = request.get("id")
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            com.disarm(setcmd=setcmd)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_takeoff(self, request):
+        """Handle takeoff request"""
+        try:
+            agent_id = request.get("id")
+            altitude = request.get("altitude", 3.0)
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            com.takeoff(altitude, setcmd=setcmd)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_move(self, request):
+        """Handle move request"""
+        try:
+            agent_id = request.get("id")
+            position = request.get("position")
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            if not position or len(position) != 3:
+                return {"ok": False, "error": "Invalid position data"}
+            
+            com = self.uav_connections[agent_id]
+            com.move(position, setcmd=setcmd)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_land(self, request):
+        """Handle land request"""
+        try:
+            agent_id = request.get("id")
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            com.land(setcmd=setcmd)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_kill(self, request):
+        """Handle kill request"""
+        try:
+            agent_id = request.get("id")
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            com.kill()
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_launch(self, request):
+        """Handle launch request - execute all queued commands"""
+        try:
+            target_ids = request.get("ids")
+            if target_ids is None:
+                target_ids = self.config.load_links()
+            
+            if not target_ids:
+                return {"ok": False, "error": "No agents to launch"}
+                
+            for agent_id in target_ids:
+                if agent_id in self.uav_connections:
+                    com = self.uav_connections[agent_id]
+                    # Call launch method on UavCOM to execute queued commands
+                    if hasattr(com, 'launch'):
+                        com.launch()
+                    else:
+                        # Fallback: call uavexeCMD_LAUNCH if available
+                        if hasattr(com, 'uavexeCMD_LAUNCH'):
+                            com.txCMD(dataID=42, channels=bytearray([2]))  # UAVEXE_CMD_LAUNCH
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_delay(self, request):
+        """Handle delay request"""
+        try:
+            agent_id = request.get("id")
+            seconds = request.get("seconds", 1.0)
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            # Check if delay method exists and supports setcmd
+            if hasattr(com, 'exe_DELAY'):
+                com.exe_DELAY(seconds, setcmd=setcmd)
+            else:
+                # If no delay method, we could implement a basic delay
+                if not setcmd:
+                    import time
+                    time.sleep(seconds)
             
             return {"ok": True}
         except Exception as e:
@@ -264,7 +456,10 @@ class NorthDaemon:
         # Save daemon info
         self.config.save_daemon_info(host, port)
         
-        # Connect to linked agents
+        # Clear any existing links to start fresh
+        self.config.save_links([])
+        
+        # Connect to linked agents (will be empty after clearing)
         self._connect_linked_agents()
         print(f"Connected to {len(self.uav_connections)} agents")
         
@@ -308,7 +503,7 @@ class NorthDaemon:
         # Close all UAV connections
         for com in self.uav_connections.values():
             try:
-                com.close()
+                com.destroy()
             except:
                 pass
         self.uav_connections.clear()

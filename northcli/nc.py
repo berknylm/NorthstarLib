@@ -6,6 +6,7 @@ Simple command-line interface for UAV management
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 # Add current directory to path for imports
@@ -54,7 +55,6 @@ def handle_unlink(args):
     except Exception as e:
         print(f"Error: {e}")
 
-
 def handle_status(args):
     """Get status from agents"""
     try:
@@ -89,28 +89,275 @@ def handle_status(args):
     except Exception as e:
         print(f"Error: {e}")
 
-
-def handle_cmd(args):
-    """Send commands to agents"""
+def handle_origin(args):
+    """Set GPS origin coordinates"""
+    try:
+        # Parse coordinates
+        coords = args.coordinates.replace('"', '').split(',')
+        if len(coords) != 2:
+            print("Error: Origin requires lat,lon format")
+            return
+            
+        lat = float(coords[0].strip())
+        lon = float(coords[1].strip())
+        
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to set origin for")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "origin",
+                "id": str(agent_id),
+                "lat": lat,
+                "lon": lon
+            })
+            
+            if response and response.get("ok"):
+                print(f"Origin set for agent {agent_id}: {lat}, {lon}")
+            else:
+                print(f"Failed to set origin for agent {agent_id}")
+                
+    except ValueError:
+        print("Error: Invalid coordinate format")
+    except Exception as e:
+        print(f"Error: {e}")
+        
+def handle_arm(args):
+    """Arm UAV agents"""
     try:
         client = NorthClient()
-        response = client.send_request({
-            "action": "cmd",
-            "id": str(args.id),
-            "takeoff": args.takeoff,
-            "land": args.land,
-            "pos": args.pos
-        })
         
-        if response and response.get("ok"):
-            cmd_name = "takeoff" if args.takeoff else "land" if args.land else f"position {args.pos}"
-            print(f"Command '{cmd_name}' sent to agent {args.id}")
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
         else:
-            print("Failed to send command")
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
             
+        if not agent_ids:
+            print("No agents to arm")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "arm",
+                "id": str(agent_id)
+            })
+            
+            if response and response.get("ok"):
+                print(f"Armed agent {agent_id}")
+            else:
+                print(f"Failed to arm agent {agent_id}")
+                
     except Exception as e:
         print(f"Error: {e}")
 
+def handle_disarm(args):
+    """Disarm UAV agents"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to disarm")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "disarm",
+                "id": str(agent_id)
+            })
+            
+            if response and response.get("ok"):
+                print(f"Disarmed agent {agent_id}")
+            else:
+                print(f"Failed to disarm agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_takeoff(args):
+    """Command UAVs to takeoff"""
+    try:
+        client = NorthClient()
+        altitude = float(args.altitude.replace('"', ''))
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to takeoff")
+            return
+                
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "takeoff",
+                "id": str(agent_id),
+                "altitude": altitude
+            })
+            
+            if response and response.get("ok"):
+                print(f"Takeoff command sent to agent {agent_id} (altitude: {altitude}m)")
+            else:
+                print(f"Failed to send takeoff to agent {agent_id}")
+                
+    except ValueError:
+        print("Error: Invalid altitude value")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_delay(args):
+    """Wait for specified seconds"""
+    try:
+        seconds = float(args.seconds.replace('"', ''))
+        print(f"Waiting {seconds} seconds...")
+        time.sleep(seconds)
+        print("Wait completed")
+    except ValueError:
+        print("Error: Invalid delay value")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_move(args):
+    """Move UAV to specified position"""
+    try:
+        # Parse coordinates
+        coords = args.position.replace('"', '').split(',')
+        if len(coords) != 3:
+            print("Error: Position requires x,y,z format")
+            return
+            
+        x = float(coords[0].strip())
+        y = float(coords[1].strip())
+        z = float(coords[2].strip())
+        
+        client = NorthClient()
+        agent_id = int(args.agent)
+        
+        response = client.send_request({
+            "action": "move",
+            "id": str(agent_id),
+            "position": [x, y, z]
+        })
+        
+        if response and response.get("ok"):
+            print(f"Move command sent to agent {agent_id}: ({x}, {y}, {z})")
+        else:
+            print(f"Failed to send move command to agent {agent_id}")
+            
+    except ValueError:
+        print("Error: Invalid position format")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_land(args):
+    """Command UAVs to land"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to land")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "land",
+                "id": str(agent_id)
+            })
+            
+            if response and response.get("ok"):
+                print(f"Land command sent to agent {agent_id}")
+            else:
+                print(f"Failed to send land command to agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_kill(args):
+    """Emergency kill UAV agents"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to kill")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "kill",
+                "id": str(agent_id)
+            })
+            
+            if response and response.get("ok"):
+                print(f"Kill command sent to agent {agent_id}")
+            else:
+                print(f"Failed to send kill command to agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_launch(args):
+    """Launch all queued commands on UAV agents"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to launch")
+            return
+            
+        response = client.send_request({
+            "action": "launch",
+            "ids": agent_ids
+        })
+        
+        if response and response.get("ok"):
+            print(f"Launch command sent to {len(agent_ids)} agents")
+        else:
+            print("Failed to send launch command")
+                
+    except Exception as e:
+        print(f"Error: {e}")
 
 def handle_run(args):
     """Start the daemon"""
@@ -123,6 +370,242 @@ def handle_run(args):
     except Exception as e:
         print(f"Error starting daemon: {e}")
 
+# Set command handlers (async operations)
+def handle_origin_set(args):
+    """Queue GPS origin setting command"""
+    try:
+        # Parse coordinates
+        coords = args.coordinates.replace('"', '').split(',')
+        if len(coords) != 2:
+            print("Error: Origin requires lat,lon format")
+            return
+            
+        lat = float(coords[0].strip())
+        lon = float(coords[1].strip())
+        
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to set origin for")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "origin",
+                "id": str(agent_id),
+                "lat": lat,
+                "lon": lon,
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Origin command queued for agent {agent_id}: {lat}, {lon}")
+            else:
+                print(f"Failed to queue origin command for agent {agent_id}")
+                
+    except ValueError:
+        print("Error: Invalid coordinate format")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_arm_set(args):
+    """Queue arm command"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to arm")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "arm",
+                "id": str(agent_id),
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Arm command queued for agent {agent_id}")
+            else:
+                print(f"Failed to queue arm command for agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_disarm_set(args):
+    """Queue disarm command"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to disarm")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "disarm",
+                "id": str(agent_id),
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Disarm command queued for agent {agent_id}")
+            else:
+                print(f"Failed to queue disarm command for agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_takeoff_set(args):
+    """Queue takeoff command"""
+    try:
+        client = NorthClient()
+        altitude = float(args.altitude.replace('"', ''))
+        
+        if args.all:
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to takeoff")
+            return
+                
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "takeoff",
+                "id": str(agent_id),
+                "altitude": altitude,
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Takeoff command queued for agent {agent_id} (altitude: {altitude}m)")
+            else:
+                print(f"Failed to queue takeoff command for agent {agent_id}")
+                
+    except ValueError:
+        print("Error: Invalid altitude value")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_move_set(args):
+    """Queue move command"""
+    try:
+        # Parse coordinates
+        coords = args.position.replace('"', '').split(',')
+        if len(coords) != 3:
+            print("Error: Position requires x,y,z format")
+            return
+            
+        x = float(coords[0].strip())
+        y = float(coords[1].strip())
+        z = float(coords[2].strip())
+        
+        client = NorthClient()
+        agent_id = int(args.agent)
+        
+        response = client.send_request({
+            "action": "move",
+            "id": str(agent_id),
+            "position": [x, y, z],
+            "setcmd": True
+        })
+        
+        if response and response.get("ok"):
+            print(f"Move command queued for agent {agent_id}: ({x}, {y}, {z})")
+        else:
+            print(f"Failed to queue move command for agent {agent_id}")
+            
+    except ValueError:
+        print("Error: Invalid position format")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_land_set(args):
+    """Queue land command"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to land")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "land",
+                "id": str(agent_id),
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Land command queued for agent {agent_id}")
+            else:
+                print(f"Failed to queue land command for agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+def handle_delay_set(args):
+    """Queue delay command"""
+    try:
+        seconds = float(args.seconds.replace('"', ''))
+        
+        client = NorthClient()
+        
+        if args.all:
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to delay")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "delay",
+                "id": str(agent_id),
+                "seconds": seconds,
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Delay command queued for agent {agent_id}: {seconds} seconds")
+            else:
+                print(f"Failed to queue delay command for agent {agent_id}")
+                
+    except ValueError:
+        print("Error: Invalid delay value")
+    except Exception as e:
+        print(f"Error: {e}")
 
 def handle_stop(args):
     """Stop the daemon"""
@@ -142,6 +625,12 @@ def main():
     parser = argparse.ArgumentParser(prog="nc", description="NorthstarLib CLI")
     subparsers = parser.add_subparsers(dest="cmd")
 
+    # Daemon commands
+    run_parser = subparsers.add_parser("run", help="Start daemon")
+    run_parser.add_argument("--host", default="127.0.0.1", help="Host address")
+    run_parser.add_argument("--port", type=int, default=7777, help="Port number")
+    run_parser.set_defaults(func=handle_run)
+
     # Link command
     link_parser = subparsers.add_parser("link", help="Link agents")
     link_parser.add_argument("ids", nargs="+", type=int, help="Agent IDs")
@@ -150,10 +639,65 @@ def main():
     # Unlink command
     unlink_parser = subparsers.add_parser("unlink", help="Unlink agents")
     unlink_parser.add_argument("ids", nargs="*", type=int, help="Agent IDs")
-    unlink_parser.add_argument("--all", action="store_true", help="Unlink all")
+    unlink_parser.add_argument("--all", action="store_true", help="Unlink all agents")
     unlink_parser.set_defaults(func=handle_unlink)
 
-    # Status command
+    # Origin command
+    origin_parser = subparsers.add_parser("origin", help="Set GPS origin coordinates")
+    origin_parser.add_argument("coordinates", help="GPS coordinates as \"lat,lon\"")
+    origin_parser.add_argument("--all", action="store_true", help="Set for all agents")
+    origin_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    origin_parser.set_defaults(func=handle_origin)
+
+    # Arm command
+    arm_parser = subparsers.add_parser("arm", help="Arm UAVs")
+    arm_parser.add_argument("--all", action="store_true", help="Arm all agents")
+    arm_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    arm_parser.set_defaults(func=handle_arm)
+
+    # Disarm command
+    disarm_parser = subparsers.add_parser("disarm", help="Disarm UAVs")
+    disarm_parser.add_argument("--all", action="store_true", help="Disarm all agents")
+    disarm_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    disarm_parser.set_defaults(func=handle_disarm)
+
+    # Takeoff command
+    takeoff_parser = subparsers.add_parser("takeoff", help="Command UAVs to takeoff")
+    takeoff_parser.add_argument("altitude", help="Takeoff altitude in meters")
+    takeoff_parser.add_argument("--all", action="store_true", help="Takeoff all agents")
+    takeoff_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    takeoff_parser.set_defaults(func=handle_takeoff)
+
+    # Delay command
+    delay_parser = subparsers.add_parser("delay", help="Wait for specified seconds")
+    delay_parser.add_argument("seconds", help="Number of seconds to wait")
+    delay_parser.set_defaults(func=handle_delay)
+
+    # Move command
+    move_parser = subparsers.add_parser("move", help="Move UAV to position")
+    move_parser.add_argument("position", help="Position as \"x,y,z\"")
+    move_parser.add_argument("agent", type=int, help="Agent ID")
+    move_parser.set_defaults(func=handle_move)
+
+    # Land command
+    land_parser = subparsers.add_parser("land", help="Command UAVs to land")
+    land_parser.add_argument("--all", action="store_true", help="Land all agents")
+    land_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    land_parser.set_defaults(func=handle_land)
+
+    # Kill command
+    kill_parser = subparsers.add_parser("kill", help="Emergency kill UAVs")
+    kill_parser.add_argument("--all", action="store_true", help="Kill all agents")
+    kill_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    kill_parser.set_defaults(func=handle_kill)
+
+    # Launch command
+    launch_parser = subparsers.add_parser("launch", help="Execute all queued commands")
+    launch_parser.add_argument("--all", action="store_true", help="Launch all agents")
+    launch_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    launch_parser.set_defaults(func=handle_launch)
+
+    # Status command (kept for debugging)
     status_parser = subparsers.add_parser("status", help="Get agent status")
     status_parser.add_argument("ids", nargs="*", type=int, help="Agent IDs")
     status_parser.add_argument("-pos", action="store_true", help="Show position")
@@ -162,23 +706,57 @@ def main():
     status_parser.add_argument("-batt", action="store_true", help="Show battery")
     status_parser.set_defaults(func=handle_status)
 
-    # Command
-    cmd_parser = subparsers.add_parser("cmd", help="Send commands")
-    cmd_parser.add_argument("id", type=int, help="Agent ID")
-    cmd_group = cmd_parser.add_mutually_exclusive_group(required=True)
-    cmd_group.add_argument("-takeoff", action="store_true", help="Take off")
-    cmd_group.add_argument("-land", action="store_true", help="Land")
-    cmd_group.add_argument("-pos", nargs=3, type=float, help="Set position X Y Z")
-    cmd_parser.set_defaults(func=handle_cmd)
-
-    # Daemon commands
-    run_parser = subparsers.add_parser("run", help="Start daemon")
-    run_parser.add_argument("--host", default="127.0.0.1", help="Host address")
-    run_parser.add_argument("--port", type=int, default=7777, help="Port number")
-    run_parser.set_defaults(func=handle_run)
-
     stop_parser = subparsers.add_parser("stop", help="Stop daemon")
     stop_parser.set_defaults(func=handle_stop)
+
+    # Set command group for async operations
+    set_parser = subparsers.add_parser("set", help="Queue commands for async execution")
+    set_subparsers = set_parser.add_subparsers(dest="set_cmd")
+
+    # Set Origin command
+    set_origin_parser = set_subparsers.add_parser("origin", help="Queue GPS origin setting")
+    set_origin_parser.add_argument("coordinates", help="GPS coordinates as \"lat,lon\"")
+    set_origin_parser.add_argument("--all", action="store_true", help="Set for all agents")
+    set_origin_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_origin_parser.set_defaults(func=lambda args: handle_origin_set(args))
+
+    # Set Arm command
+    set_arm_parser = set_subparsers.add_parser("arm", help="Queue arm command")
+    set_arm_parser.add_argument("--all", action="store_true", help="Arm all agents")
+    set_arm_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_arm_parser.set_defaults(func=lambda args: handle_arm_set(args))
+
+    # Set Disarm command
+    set_disarm_parser = set_subparsers.add_parser("disarm", help="Queue disarm command")
+    set_disarm_parser.add_argument("--all", action="store_true", help="Disarm all agents")
+    set_disarm_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_disarm_parser.set_defaults(func=lambda args: handle_disarm_set(args))
+
+    # Set Takeoff command
+    set_takeoff_parser = set_subparsers.add_parser("takeoff", help="Queue takeoff command")
+    set_takeoff_parser.add_argument("altitude", help="Takeoff altitude in meters")
+    set_takeoff_parser.add_argument("--all", action="store_true", help="Takeoff all agents")
+    set_takeoff_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_takeoff_parser.set_defaults(func=lambda args: handle_takeoff_set(args))
+
+    # Set Move command
+    set_move_parser = set_subparsers.add_parser("move", help="Queue move command")
+    set_move_parser.add_argument("position", help="Position as \"x,y,z\"")
+    set_move_parser.add_argument("agent", type=int, help="Agent ID")
+    set_move_parser.set_defaults(func=lambda args: handle_move_set(args))
+
+    # Set Land command
+    set_land_parser = set_subparsers.add_parser("land", help="Queue land command")
+    set_land_parser.add_argument("--all", action="store_true", help="Land all agents")
+    set_land_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_land_parser.set_defaults(func=lambda args: handle_land_set(args))
+
+    # Set Delay command
+    set_delay_parser = set_subparsers.add_parser("delay", help="Queue delay command")
+    set_delay_parser.add_argument("seconds", help="Number of seconds to wait")
+    set_delay_parser.add_argument("--all", action="store_true", help="Delay all agents")
+    set_delay_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_delay_parser.set_defaults(func=lambda args: handle_delay_set(args))
 
     # Parse and execute
     args = parser.parse_args()

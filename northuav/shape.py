@@ -11,7 +11,7 @@
 import time
 import math
 # Local vector math helpers
-from northswarm.math3d import *
+from northuav.math3d import *
 
 Blank = [0.0, 0.0, 0.0]
 

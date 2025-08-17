@@ -14,9 +14,9 @@ import readline
 sys.path.append('./')
 
 import northlib.ntrp as radioManager
-from northswarm.uavcom import UavCOM
+from northuav.uavcom import UavCOM
 
-uri = "radio:/0/60/2/E7E7E7E301"
+uri = "radio:/0/72/2/E7E7E7E301"
 
 class UavClient:
     def __init__(self, uav:UavCOM):

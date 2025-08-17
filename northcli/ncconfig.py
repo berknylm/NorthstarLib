@@ -46,7 +46,6 @@ class NorthConfig:
         """Load linked agent IDs"""
         if not self.links_file.exists():
             return []
-        
         try:
             with open(self.links_file, 'r') as f:
                 return json.load(f)

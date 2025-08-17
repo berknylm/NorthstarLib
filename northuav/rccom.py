@@ -32,7 +32,7 @@ if __name__ == '__main__':
     radioManager.radioSearch()
     if len(radioManager.availableRadios) == 0:  sys.exit()
     
-    uavcom = NorthNRF(ch=60)
+    uavcom = NorthNRF(ch=84)
  
     ctrl = ncmd.Controller(True)
     

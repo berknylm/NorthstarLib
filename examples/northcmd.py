@@ -18,7 +18,7 @@ import northlib.ntrp.ntrp as ntrp
 import northlib.ncmd.controller as ncmd
 from   northlib.ncmd.northcom import NorthCOM
 from   northlib.ncmd.nrxtable import NrxTableLog
-from   northswarm.uavcom import UavCOM
+from   northuav.uavcom import UavCOM
 
 """
 String to NRX Commands translator
@@ -48,7 +48,7 @@ class NorthCMD(UavCOM):
 		if(parsed[0] == "LAND")   : self.setMode(self.UAV_LAND)
 
 
-uri = "radio:/0/76/2/E7E7E7E305"
+uri = "radio:/0/72/2/E7E7E7E301"
 
 if __name__ == '__main__':
 	

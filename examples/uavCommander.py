@@ -21,7 +21,7 @@ from   northlib.ncmd.nrxtable import NrxTableLog
 import keyboard
 import threading
 
-uri =  "radio:/0/76/2/E7E7E7E305"
+uri =  "radio:/0/72/2/E7E7E7E301"
 
 def nrxProcess(uavcom):
     nrx_valid = False
