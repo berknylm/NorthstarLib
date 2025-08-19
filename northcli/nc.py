@@ -197,6 +197,7 @@ def handle_takeoff(args):
     try:
         client = NorthClient()
         altitude = float(args.altitude.replace('"', ''))
+        time_param = float(args.time.replace('"', '')) if hasattr(args, 'time') and args.time else 10.0
         
         if args.all:
             # Get all linked agents
@@ -213,16 +214,17 @@ def handle_takeoff(args):
             response = client.send_request({
                 "action": "takeoff",
                 "id": str(agent_id),
-                "altitude": altitude
+                "altitude": altitude,
+                "time": time_param
             })
             
             if response and response.get("ok"):
-                print(f"Takeoff command sent to agent {agent_id} (altitude: {altitude}m)")
+                print(f"Takeoff command sent to agent {agent_id} (altitude: {altitude}m, time: {time_param}s)")
             else:
                 print(f"Failed to send takeoff to agent {agent_id}")
                 
     except ValueError:
-        print("Error: Invalid altitude value")
+        print("Error: Invalid altitude or time value")
     except Exception as e:
         print(f"Error: {e}")
 
@@ -241,8 +243,12 @@ def handle_delay(args):
 def handle_move(args):
     """Move UAV to specified position"""
     try:
-        # Parse coordinates
-        coords = args.position.replace('"', '').split(',')
+        # Parse coordinates - support both positional and named arguments
+        if hasattr(args, 'pos') and args.pos:
+            coords = args.pos.replace('"', '').split(',')
+        else:
+            coords = args.position.replace('"', '').split(',')
+            
         if len(coords) != 3:
             print("Error: Position requires x,y,z format")
             return
@@ -251,22 +257,30 @@ def handle_move(args):
         y = float(coords[1].strip())
         z = float(coords[2].strip())
         
+        # Parse time parameter - support both positional and named arguments  
+        time_param = 1.0  # default
+        if hasattr(args, 't') and args.t:
+            time_param = float(args.t.replace('"', ''))
+        elif hasattr(args, 'time') and args.time:
+            time_param = float(args.time.replace('"', ''))
+        
         client = NorthClient()
         agent_id = int(args.agent)
         
         response = client.send_request({
             "action": "move",
             "id": str(agent_id),
-            "position": [x, y, z]
+            "position": [x, y, z],
+            "time": time_param
         })
         
         if response and response.get("ok"):
-            print(f"Move command sent to agent {agent_id}: ({x}, {y}, {z})")
+            print(f"Move command sent to agent {agent_id}: ({x}, {y}, {z}) in {time_param}s")
         else:
             print(f"Failed to send move command to agent {agent_id}")
             
     except ValueError:
-        print("Error: Invalid position format")
+        print("Error: Invalid position or time format")
     except Exception as e:
         print(f"Error: {e}")
 
@@ -480,6 +494,7 @@ def handle_takeoff_set(args):
     try:
         client = NorthClient()
         altitude = float(args.altitude.replace('"', ''))
+        time_param = float(args.time.replace('"', '')) if hasattr(args, 'time') and args.time else 10.0
         
         if args.all:
             config = NorthConfig()
@@ -496,24 +511,29 @@ def handle_takeoff_set(args):
                 "action": "takeoff",
                 "id": str(agent_id),
                 "altitude": altitude,
+                "time": time_param,
                 "setcmd": True
             })
             
             if response and response.get("ok"):
-                print(f"Takeoff command queued for agent {agent_id} (altitude: {altitude}m)")
+                print(f"Takeoff command queued for agent {agent_id} (altitude: {altitude}m, time: {time_param}s)")
             else:
                 print(f"Failed to queue takeoff command for agent {agent_id}")
                 
     except ValueError:
-        print("Error: Invalid altitude value")
+        print("Error: Invalid altitude or time value")
     except Exception as e:
         print(f"Error: {e}")
 
 def handle_move_set(args):
     """Queue move command"""
     try:
-        # Parse coordinates
-        coords = args.position.replace('"', '').split(',')
+        # Parse coordinates - support both positional and named arguments
+        if hasattr(args, 'pos') and args.pos:
+            coords = args.pos.replace('"', '').split(',')
+        else:
+            coords = args.position.replace('"', '').split(',')
+            
         if len(coords) != 3:
             print("Error: Position requires x,y,z format")
             return
@@ -522,6 +542,13 @@ def handle_move_set(args):
         y = float(coords[1].strip())
         z = float(coords[2].strip())
         
+        # Parse time parameter - support both positional and named arguments
+        time_param = 1.0  # default
+        if hasattr(args, 't') and args.t:
+            time_param = float(args.t.replace('"', ''))
+        elif hasattr(args, 'time') and args.time:
+            time_param = float(args.time.replace('"', ''))
+        
         client = NorthClient()
         agent_id = int(args.agent)
         
@@ -529,16 +556,18 @@ def handle_move_set(args):
             "action": "move",
             "id": str(agent_id),
             "position": [x, y, z],
+            "time": time_param,
             "setcmd": True
         })
         
+        
         if response and response.get("ok"):
-            print(f"Move command queued for agent {agent_id}: ({x}, {y}, {z})")
+            print(f"Move command queued for agent {agent_id}: ({x}, {y}, {z}) in {time_param}s")
         else:
             print(f"Failed to queue move command for agent {agent_id}")
             
     except ValueError:
-        print("Error: Invalid position format")
+        print("Error: Invalid position or time format")
     except Exception as e:
         print(f"Error: {e}")
 
@@ -664,6 +693,7 @@ def main():
     # Takeoff command
     takeoff_parser = subparsers.add_parser("takeoff", help="Command UAVs to takeoff")
     takeoff_parser.add_argument("altitude", help="Takeoff altitude in meters")
+    takeoff_parser.add_argument("time", nargs="?", help="Time for takeoff in seconds (optional)")
     takeoff_parser.add_argument("--all", action="store_true", help="Takeoff all agents")
     takeoff_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
     takeoff_parser.set_defaults(func=handle_takeoff)
@@ -673,10 +703,13 @@ def main():
     delay_parser.add_argument("seconds", help="Number of seconds to wait")
     delay_parser.set_defaults(func=handle_delay)
 
-    # Move command
+    # Move command - support multiple syntax formats
     move_parser = subparsers.add_parser("move", help="Move UAV to position")
-    move_parser.add_argument("position", help="Position as \"x,y,z\"")
+    move_parser.add_argument("position", nargs="?", help="Position as \"x,y,z\" (positional)")
+    move_parser.add_argument("time", nargs="?", help="Time in seconds (positional)")
     move_parser.add_argument("agent", type=int, help="Agent ID")
+    move_parser.add_argument("--pos", help="Position as \"x,y,z\" (named parameter)")
+    move_parser.add_argument("--t", help="Time in seconds (named parameter)")
     move_parser.set_defaults(func=handle_move)
 
     # Land command
@@ -735,14 +768,18 @@ def main():
     # Set Takeoff command
     set_takeoff_parser = set_subparsers.add_parser("takeoff", help="Queue takeoff command")
     set_takeoff_parser.add_argument("altitude", help="Takeoff altitude in meters")
+    set_takeoff_parser.add_argument("time", nargs="?", help="Time for takeoff in seconds (optional)")
     set_takeoff_parser.add_argument("--all", action="store_true", help="Takeoff all agents")
     set_takeoff_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
     set_takeoff_parser.set_defaults(func=lambda args: handle_takeoff_set(args))
 
-    # Set Move command
+    # Set Move command - support multiple syntax formats
     set_move_parser = set_subparsers.add_parser("move", help="Queue move command")
-    set_move_parser.add_argument("position", help="Position as \"x,y,z\"")
+    set_move_parser.add_argument("position", nargs="?", help="Position as \"x,y,z\" (positional)")
+    set_move_parser.add_argument("time", nargs="?", help="Time in seconds (positional)")
     set_move_parser.add_argument("agent", type=int, help="Agent ID")
+    set_move_parser.add_argument("--pos", help="Position as \"x,y,z\" (named parameter)")
+    set_move_parser.add_argument("--t", help="Time in seconds (named parameter)")
     set_move_parser.set_defaults(func=lambda args: handle_move_set(args))
 
     # Set Land command

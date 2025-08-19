@@ -327,13 +327,14 @@ class NorthDaemon:
         try:
             agent_id = request.get("id")
             altitude = request.get("altitude", 3.0)
+            time_param = request.get("time", 10.0)
             setcmd = request.get("setcmd", False)
             
             if agent_id not in self.uav_connections:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.takeoff(altitude, setcmd=setcmd)
+            com.takeoff(altitude, t=time_param, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -344,6 +345,7 @@ class NorthDaemon:
         try:
             agent_id = request.get("id")
             position = request.get("position")
+            time_param = request.get("time", 1.0)
             setcmd = request.get("setcmd", False)
             
             if agent_id not in self.uav_connections:
@@ -353,7 +355,7 @@ class NorthDaemon:
                 return {"ok": False, "error": "Invalid position data"}
             
             com = self.uav_connections[agent_id]
-            com.move(position, setcmd=setcmd)
+            com.move(position, t=time_param, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:

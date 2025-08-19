@@ -93,7 +93,6 @@ class UavCOM(NorthCOM, UavEXE):
     UAV_CMD_HOME           = 7
     UAV_CMD_KILL           = 8
     UAV_CMD_ORIGIN         = 9
-    UAV_CMD_ORIGIN         = 9
 
     UAVCOM_PACKET_ID       = 40
     
@@ -118,14 +117,14 @@ class UavCOM(NorthCOM, UavEXE):
         self.uavThread.start()
 
     def uavCMD(self, arg, setcmd=False):
-        """ ARM      : [1]
-            DISARM   : [2]
-            TAKEOFF  : [3, posz]
-            LAND	 : [4]
-            MOVE     : [5, posx, posy, posz]
-            YAW		 : [6, rotz]
-            HOME	 : [7]
-            KILL     : [8]
+        """ * ARM      : [1]
+            * DISARM   : [2]
+            * TAKEOFF  : [3, posz, t]
+            * LAND     : [4]
+            * MOVE     : [5, posx, posy, posz, t]
+            * YAW      : [6, rotz]
+            * HOME     : [7]
+            * KILL     : [8]
         """
         if setcmd:
             self.exe_UAVCMD(arg, setcmd=True)
@@ -138,19 +137,25 @@ class UavCOM(NorthCOM, UavEXE):
     def disarm(self, setcmd=False):
         self.uavCMD([self.UAV_CMD_DISARM], setcmd)
         
-    def takeoff(self, posz:float = 3, setcmd=False):
+    def takeoff(self, posz:float = 3, t=10.0, setcmd=False):
         arg = [self.UAV_CMD_TAKEOFF]
         arg.extend(struct.pack('<f', float(posz)))
+        arg.extend(struct.pack('<f', float(t))) # Seconds
         self.uavCMD(arg, setcmd)
 
     def land(self, setcmd=False):
         self.uavCMD([self.UAV_CMD_LAND], setcmd)
     
-    def move(self, pos=[0,0,0], setcmd=False): 
+    def move(self, pos=[0,0,0], t=1.0, setcmd=False):
+        """ 
+        * pos : vec3
+        * t : seconds
+          """ 
         arg = [self.UAV_CMD_MOVE]
         arg.extend(struct.pack('<f', float(pos[0])))
         arg.extend(struct.pack('<f', float(pos[1])))
         arg.extend(struct.pack('<f', float(pos[2])))
+        arg.extend(struct.pack('<f', float(t))) 
         self.uavCMD(arg, setcmd)
 
     def yaw(self, rotz:float, setcmd=False):

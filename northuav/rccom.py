@@ -43,7 +43,7 @@ if __name__ == '__main__':
                 ctrl.update()
                 time.sleep(ctrl.THREAD_SLEEP)
                 cmd = ctrl.getAxis()
-                if cmd[4] != 0: cmd[4] = RCCOM_STATE_NAV
+                if cmd[4] != 0: cmd[4] = RCCOM_STATE_HEIGHT
                 uavcom.txCMD(channels=cmd, force=True)
         except KeyboardInterrupt:
             print("Keyboard Interrupt")

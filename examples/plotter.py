@@ -23,7 +23,7 @@ from northlib.ncmd.nrxtable import NrxTableLog
 
 from liveplot import LivePlot
 
-uri = "radio:/0/82/2/E7E7E7E301"
+uri = "radio:/0/74/2/E7E7E7E301"
 
 class InteractivePlotter:
     def __init__(self, uavcom, uavtable):
@@ -100,7 +100,7 @@ class InteractivePlotter:
             except Exception as e:
                 print(f"Error reading parameter during logging: {e}")
                 
-            time.sleep(0.05)  # 20Hz logging rate
+            time.sleep(0.01)  # 20Hz logging rate
             
     def handle_log(self, param_name):
         if self.is_logging:
