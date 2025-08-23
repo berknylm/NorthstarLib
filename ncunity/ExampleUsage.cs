@@ -42,6 +42,13 @@ public class ExampleUsage : MonoBehaviour
         controller.Disarm(76);
     }
 
+    public void SendAllHome()
+    {
+        controller.Home(72);
+        controller.Home(74);
+        controller.Home(76);
+    }
+
     public void QueuedMission()
     {
         controller.Arm(72, true);

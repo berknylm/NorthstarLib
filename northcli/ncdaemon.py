@@ -66,9 +66,10 @@ class NorthDaemon:
             
             from northuav.uavcom import UavCOM
             
-            linked_agents = self.config.load_links()
+            linked_agents = sorted(self.config.load_links())
             for idx, agent_id in enumerate(linked_agents):
                 uri = f"radio:/{idx}/{int(agent_id):02d}/2/E7E7E7E301"
+                print(f"Connecting agent {agent_id} to radio {idx}: {uri}")
                 com = UavCOM(uri)
                 self.uav_connections[agent_id] = com
                 time.sleep(0.05)  # Small delay between connections
@@ -132,6 +133,8 @@ class NorthDaemon:
             return self._handle_move(request)
         elif action == "land":
             return self._handle_land(request)
+        elif action == "home":
+            return self._handle_home(request)
         elif action == "kill":
             return self._handle_kill(request)
         elif action == "launch":
@@ -148,7 +151,7 @@ class NorthDaemon:
         try:
             new_ids = request.get("ids", [])
             current_ids = self.config.load_links()
-            all_ids = list(set(current_ids + new_ids))
+            all_ids = sorted(list(set(current_ids + new_ids)))
             self.config.save_links(all_ids)
             
             # Try to connect new agents
@@ -163,9 +166,10 @@ class NorthDaemon:
                             sys.path.insert(0, parent_dir)
                         
                         from northuav.uavcom import UavCOM
-                        # Calculate radio index based on position in all_ids list
+                        # Calculate radio index based on sorted position in all_ids list
                         radio_idx = all_ids.index(agent_id)
                         uri = f"radio:/{radio_idx}/{int(agent_id):02d}/2/E7E7E7E301"
+                        print(f"Linking agent {agent_id} to radio {radio_idx}: {uri}")
                         com = UavCOM(uri)
                         self.uav_connections[agent_id] = com
                         time.sleep(0.05)
@@ -372,6 +376,22 @@ class NorthDaemon:
             
             com = self.uav_connections[agent_id]
             com.land(setcmd=setcmd)
+            
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+    
+    def _handle_home(self, request):
+        """Handle home request"""
+        try:
+            agent_id = request.get("id")
+            setcmd = request.get("setcmd", False)
+            
+            if agent_id not in self.uav_connections:
+                return {"ok": False, "error": f"Agent {agent_id} not connected"}
+            
+            com = self.uav_connections[agent_id]
+            com.home(setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:

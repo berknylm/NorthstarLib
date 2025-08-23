@@ -314,6 +314,36 @@ def handle_land(args):
     except Exception as e:
         print(f"Error: {e}")
 
+def handle_home(args):
+    """Send UAVs to home position"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            # Get all linked agents
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to send home")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "home",
+                "id": str(agent_id)
+            })
+            
+            if response and response.get("ok"):
+                print(f"Home command sent to agent {agent_id}")
+            else:
+                print(f"Failed to send home command to agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
 def handle_kill(args):
     """Emergency kill UAV agents"""
     try:
@@ -601,6 +631,36 @@ def handle_land_set(args):
     except Exception as e:
         print(f"Error: {e}")
 
+def handle_home_set(args):
+    """Queue home command"""
+    try:
+        client = NorthClient()
+        
+        if args.all:
+            config = NorthConfig()
+            agent_ids = config.load_links()
+        else:
+            agent_ids = args.agents if hasattr(args, 'agents') and args.agents else []
+            
+        if not agent_ids:
+            print("No agents to send home")
+            return
+            
+        for agent_id in agent_ids:
+            response = client.send_request({
+                "action": "home",
+                "id": str(agent_id),
+                "setcmd": True
+            })
+            
+            if response and response.get("ok"):
+                print(f"Home command queued for agent {agent_id}")
+            else:
+                print(f"Failed to queue home command for agent {agent_id}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
 def handle_delay_set(args):
     """Queue delay command"""
     try:
@@ -718,6 +778,12 @@ def main():
     land_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
     land_parser.set_defaults(func=handle_land)
 
+    # Home command
+    home_parser = subparsers.add_parser("home", help="Send UAVs to home position")
+    home_parser.add_argument("--all", action="store_true", help="Send all agents home")
+    home_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    home_parser.set_defaults(func=handle_home)
+
     # Kill command
     kill_parser = subparsers.add_parser("kill", help="Emergency kill UAVs")
     kill_parser.add_argument("--all", action="store_true", help="Kill all agents")
@@ -787,6 +853,12 @@ def main():
     set_land_parser.add_argument("--all", action="store_true", help="Land all agents")
     set_land_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
     set_land_parser.set_defaults(func=lambda args: handle_land_set(args))
+
+    # Set Home command
+    set_home_parser = set_subparsers.add_parser("home", help="Queue home command")
+    set_home_parser.add_argument("--all", action="store_true", help="Send all agents home")
+    set_home_parser.add_argument("agents", nargs="*", type=int, help="Specific agent IDs")
+    set_home_parser.set_defaults(func=lambda args: handle_home_set(args))
 
     # Set Delay command
     set_delay_parser = set_subparsers.add_parser("delay", help="Queue delay command")

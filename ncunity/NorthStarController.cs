@@ -265,6 +265,14 @@ public class NorthStarController : MonoBehaviour
                 }
                 break;
 
+            case "home":
+                if (parameters.Length > 0)
+                {
+                    args["id"] = parameters[0].ToString();
+                    if (parameters.Length > 1) args["setcmd"] = Convert.ToBoolean(parameters[1], CultureInfo.InvariantCulture);
+                }
+                break;
+
             case "kill":
                 if (parameters.Length > 0) args["id"] = parameters[0].ToString();
                 break;
@@ -312,6 +320,7 @@ public class NorthStarController : MonoBehaviour
     public void Move(float x, float y, float z, float time, int agentId, bool setCmd = false) => ExecuteCommand("move", x, y, z, time, agentId, setCmd);
     public void Move(Vector3 position, float time, int agentId, bool setCmd = false) => ExecuteCommand("move", position.x, position.y, position.z, time, agentId, setCmd);
     public void Land(int agentId, bool setCmd = false) => ExecuteCommand("land", agentId, setCmd);
+    public void Home(int agentId, bool setCmd = false) => ExecuteCommand("home", agentId, setCmd);
     public void Kill(int agentId) => ExecuteCommand("kill", agentId);
     public void Delay(float seconds, int agentId, bool setCmd = true) => ExecuteCommand("delay", seconds, agentId, setCmd);
     public void Launch(params int[] agentIds) => ExecuteCommand("launch", agentIds.Cast<object>().ToArray());

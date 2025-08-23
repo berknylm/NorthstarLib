@@ -29,6 +29,7 @@ python nc.py disarm --all                   # Disarm all
 | `move` | `python nc.py move "x,y,z" 72` | Move to position (single agent) |
 | `delay` | `python nc.py delay "10"` | Wait seconds |
 | `land` | `python nc.py land --all` | Land UAVs |
+| `home` | `python nc.py home --all` | Send UAVs to home position |
 | `kill` | `python nc.py kill --all` | Emergency kill UAVs |
 | `launch` | `python nc.py launch --all` | Execute all queued commands |
 
@@ -51,4 +52,5 @@ python nc.py disarm --all                   # Disarm all
 | `move` | `python nc.py set move "x,y,z" 72` | Set Move to position (single agent) |
 | `delay` | `python nc.py set delay "10"` | Set Wait seconds |
 | `land` | `python nc.py set land --all` | Set Land UAVs |
+| `home` | `python nc.py set home --all` | Set Home position command |
 
