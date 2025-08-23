@@ -408,7 +408,8 @@ def handle_run(args):
     try:
         from ncdaemon import NorthDaemon
         daemon = NorthDaemon()
-        daemon.run(host=args.host, port=args.port)
+        burst_count = args.burst if hasattr(args, 'burst') and args.burst else None
+        daemon.run(host=args.host, port=args.port, burst_count=burst_count)
     except KeyboardInterrupt:
         print("Daemon stopped")
     except Exception as e:
@@ -718,6 +719,7 @@ def main():
     run_parser = subparsers.add_parser("run", help="Start daemon")
     run_parser.add_argument("--host", default="127.0.0.1", help="Host address")
     run_parser.add_argument("--port", type=int, default=7777, help="Port number")
+    run_parser.add_argument("--burst", type=int, help="Burst mode: repeat commands N times (optional)")
     run_parser.set_defaults(func=handle_run)
 
     # Link command

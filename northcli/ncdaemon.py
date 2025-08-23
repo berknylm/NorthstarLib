@@ -31,6 +31,17 @@ class NorthDaemon:
         self.uav_connections = {}
         self.running = False
         self.server_socket = None
+        self.burst_count = None
+    
+    def _send_uav_command(self, com, command_func, *args, **kwargs):
+        """Send UAV command with optional burst mode"""
+        if self.burst_count and self.burst_count > 1:
+            for i in range(self.burst_count):
+                command_func(*args, **kwargs)
+                if i < self.burst_count - 1:  # Don't sleep after last command
+                    time.sleep(0.005)
+        else:
+            command_func(*args, **kwargs)
     
     def _init_radios(self):
         """Initialize radio connections"""
@@ -45,7 +56,7 @@ class NorthDaemon:
             from northlib import ntrp as radio_manager
             radio_manager.radioSearch(baud=2000000)
             if not radio_manager.getAvailableRadios():
-                print("Warning: No radios found")
+                print("[!] No radios found")
             return True
         except ImportError:
             print("Error: Cannot import northlib. Check installation.")
@@ -69,7 +80,7 @@ class NorthDaemon:
             linked_agents = sorted(self.config.load_links())
             for idx, agent_id in enumerate(linked_agents):
                 uri = f"radio:/{idx}/{int(agent_id):02d}/2/E7E7E7E301"
-                print(f"Connecting agent {agent_id} to radio {idx}: {uri}")
+                print(f"[+] Agent {agent_id} -> radio {idx}")
                 com = UavCOM(uri)
                 self.uav_connections[agent_id] = com
                 time.sleep(0.05)  # Small delay between connections
@@ -113,38 +124,98 @@ class NorthDaemon:
         """Process incoming request and return response"""
         action = request.get("action")
         
-        if action == "link":
-            return self._handle_link(request)
-        elif action == "unlink":
-            return self._handle_unlink(request)
-        elif action == "status":
-            return self._handle_status(request)
-        elif action == "cmd":
-            return self._handle_command(request)
-        elif action == "origin":
-            return self._handle_origin(request)
-        elif action == "arm":
-            return self._handle_arm(request)
-        elif action == "disarm":
-            return self._handle_disarm(request)
-        elif action == "takeoff":
-            return self._handle_takeoff(request)
-        elif action == "move":
-            return self._handle_move(request)
-        elif action == "land":
-            return self._handle_land(request)
-        elif action == "home":
-            return self._handle_home(request)
-        elif action == "kill":
-            return self._handle_kill(request)
+        # Print received command
+        cmd_str = f"[>] {action}"
+        if action in ["link", "unlink"]:
+            ids = request.get("ids", [])
+            if request.get("all", False):
+                cmd_str += " --all"
+            elif ids:
+                cmd_str += f" {' '.join(ids)}"
+        elif action in ["origin", "arm", "disarm", "takeoff", "move", "land", "home", "kill", "delay"]:
+            agent_id = request.get("id")
+            setcmd = request.get("setcmd", False)
+            if agent_id:
+                cmd_str += f" {agent_id}"
+                if action == "origin":
+                    lat = request.get("lat")
+                    lon = request.get("lon")
+                    if lat is not None and lon is not None:
+                        cmd_str += f" {lat:.6f},{lon:.6f}"
+                elif action == "takeoff":
+                    altitude = request.get("altitude")
+                    time_param = request.get("time")
+                    if altitude is not None:
+                        cmd_str += f" {altitude}"
+                    if time_param is not None:
+                        cmd_str += f" {time_param}"
+                elif action == "move":
+                    position = request.get("position")
+                    time_param = request.get("time")
+                    if position and len(position) == 3:
+                        cmd_str += f" {position[0]},{position[1]},{position[2]}"
+                    if time_param is not None:
+                        cmd_str += f" {time_param}"
+                elif action == "delay":
+                    seconds = request.get("seconds")
+                    if seconds is not None:
+                        cmd_str += f" {seconds}"
+                if setcmd:
+                    cmd_str += " (set)"
         elif action == "launch":
-            return self._handle_launch(request)
+            ids = request.get("ids", [])
+            if ids:
+                cmd_str += f" {' '.join(ids)}"
+        elif action == "status":
+            ids = request.get("ids")
+            if ids:
+                cmd_str += f" {' '.join(ids)}"
+            else:
+                cmd_str += " --all"
+        
+        print(cmd_str)
+        
+        # Process the request and log result
+        response = None
+        if action == "link":
+            response = self._handle_link(request)
+        elif action == "unlink":
+            response = self._handle_unlink(request)
+        elif action == "status":
+            response = self._handle_status(request)
+        elif action == "cmd":
+            response = self._handle_command(request)
+        elif action == "origin":
+            response = self._handle_origin(request)
+        elif action == "arm":
+            response = self._handle_arm(request)
+        elif action == "disarm":
+            response = self._handle_disarm(request)
+        elif action == "takeoff":
+            response = self._handle_takeoff(request)
+        elif action == "move":
+            response = self._handle_move(request)
+        elif action == "land":
+            response = self._handle_land(request)
+        elif action == "home":
+            response = self._handle_home(request)
+        elif action == "kill":
+            response = self._handle_kill(request)
+        elif action == "launch":
+            response = self._handle_launch(request)
         elif action == "delay":
-            return self._handle_delay(request)
+            response = self._handle_delay(request)
         elif action == "shutdown":
-            return self._handle_shutdown()
+            response = self._handle_shutdown()
         else:
-            return {"ok": False, "error": f"Unknown action: {action}"}
+            response = {"ok": False, "error": f"Unknown action: {action}"}
+        
+        # Log only failures
+        if not (response and response.get("ok")):
+            error = response.get("error", "Unknown error") if response else "No response"
+            print(f"[-] FAIL: {error}")
+        
+        return response
     
     def _handle_link(self, request):
         """Handle agent linking request"""
@@ -169,12 +240,12 @@ class NorthDaemon:
                         # Calculate radio index based on sorted position in all_ids list
                         radio_idx = all_ids.index(agent_id)
                         uri = f"radio:/{radio_idx}/{int(agent_id):02d}/2/E7E7E7E301"
-                        print(f"Linking agent {agent_id} to radio {radio_idx}: {uri}")
+                        print(f"[+] Agent {agent_id} -> radio {radio_idx}")
                         com = UavCOM(uri)
                         self.uav_connections[agent_id] = com
                         time.sleep(0.05)
                     except Exception as e:
-                        print(f"Failed to connect agent {agent_id}: {e}")
+                        print(f"[-] Failed to connect agent {agent_id}: {e}")
             
             return {"ok": True}
         except Exception as e:
@@ -282,13 +353,13 @@ class NorthDaemon:
             com = self.uav_connections[agent_id]
             # Check if origin method supports setcmd parameter
             if setcmd and hasattr(com, 'origin') and 'setcmd' in com.origin.__code__.co_varnames:
-                com.origin(lat, lon, setcmd=setcmd)
+                self._send_uav_command(com, com.origin, lat, lon, setcmd=setcmd)
             elif setcmd:
                 # If setcmd is requested but not supported, we'll need to handle it differently
                 # For now, just call the regular origin method
-                com.origin(lat, lon)
+                self._send_uav_command(com, com.origin, lat, lon)
             else:
-                com.origin(lat, lon)
+                self._send_uav_command(com, com.origin, lat, lon)
             
             return {"ok": True}
         except Exception as e:
@@ -304,7 +375,7 @@ class NorthDaemon:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.arm(setcmd=setcmd)
+            self._send_uav_command(com, com.arm, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -320,7 +391,7 @@ class NorthDaemon:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.disarm(setcmd=setcmd)
+            self._send_uav_command(com, com.disarm, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -338,7 +409,7 @@ class NorthDaemon:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.takeoff(altitude, t=time_param, setcmd=setcmd)
+            self._send_uav_command(com, com.takeoff, altitude, t=time_param, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -359,7 +430,7 @@ class NorthDaemon:
                 return {"ok": False, "error": "Invalid position data"}
             
             com = self.uav_connections[agent_id]
-            com.move(position, t=time_param, setcmd=setcmd)
+            self._send_uav_command(com, com.move, position, t=time_param, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -375,7 +446,7 @@ class NorthDaemon:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.land(setcmd=setcmd)
+            self._send_uav_command(com, com.land, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -391,7 +462,7 @@ class NorthDaemon:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.home(setcmd=setcmd)
+            self._send_uav_command(com, com.home, setcmd=setcmd)
             
             return {"ok": True}
         except Exception as e:
@@ -406,7 +477,7 @@ class NorthDaemon:
                 return {"ok": False, "error": f"Agent {agent_id} not connected"}
             
             com = self.uav_connections[agent_id]
-            com.kill()
+            self._send_uav_command(com, com.kill)
             
             return {"ok": True}
         except Exception as e:
@@ -463,13 +534,18 @@ class NorthDaemon:
     
     def _handle_shutdown(self):
         """Handle shutdown request"""
-        print("Shutdown requested")
+        print("[!] Shutdown requested")
         self.running = False
         return {"ok": True}
     
-    def run(self, host="127.0.0.1", port=7777):
+    def run(self, host="127.0.0.1", port=7777, burst_count=None):
         """Start the daemon"""
         print(f"Starting North Daemon on {host}:{port}")
+        
+        # Set burst mode if specified
+        if burst_count:
+            self.burst_count = burst_count
+            print(f"[!] Burst mode enabled: {burst_count}x repeat")
         
         # Initialize radios
         if not self._init_radios():
@@ -483,7 +559,7 @@ class NorthDaemon:
         
         # Connect to linked agents (will be empty after clearing)
         self._connect_linked_agents()
-        print(f"Connected to {len(self.uav_connections)} agents")
+        print(f"[+] Connected to {len(self.uav_connections)} agents")
         
         # Start server
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

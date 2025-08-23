@@ -100,7 +100,7 @@ class InteractivePlotter:
             except Exception as e:
                 print(f"Error reading parameter during logging: {e}")
                 
-            time.sleep(0.01)  # 20Hz logging rate
+            time.sleep(0.05)  # 20Hz logging rate
             
     def handle_log(self, param_name):
         if self.is_logging:
